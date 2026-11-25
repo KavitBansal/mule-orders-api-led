@@ -1,0 +1,10 @@
+target/
+.mule/
+.settings/
+.classpath
+.project
+.code/
+.metadata/
+*.log/
+.DS_Store
+secrets.properties

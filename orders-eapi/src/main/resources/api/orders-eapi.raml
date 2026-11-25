@@ -1,0 +1,175 @@
+#%RAML 1.0
+title: Orders Experience API
+version: v1
+mediaType: application/json
+
+types:
+  NewOrderLine:
+    type: object
+    properties:
+      sku: string
+      quantity:
+        type: integer
+        minimum: 1
+  OrderLine:
+    type: NewOrderLine
+    properties:
+      unitPrice: number
+  NewOrder:
+    type: object
+    properties:
+      customerId: string
+      lines:
+        type: NewOrderLine[]
+        minItems: 1
+  Order:
+    type: object
+    properties:
+      orderId: string
+      customerId: string
+      status:
+        type: string
+        enum: [NEW, PAID, SHIPPED, CANCELLED]
+      lines: OrderLine[]
+      total: number
+  ReturnRequest:
+    type: object
+    properties:
+      reason:
+        type: string
+        enum: [DAMAGED, WRONG_ITEM, NOT_NEEDED]
+      skus:
+        type: string[]
+        minItems: 1
+  ReturnConfirmation:
+    type: object
+    properties:
+      returnId: string
+      orderId: string
+      status:
+        type: string
+        enum: [REQUESTED]
+  ApiError:
+    type: object
+    properties:
+      code: string
+      message: string
+
+traits:
+  pageable:
+    queryParameters:
+      page:
+        type: integer
+        minimum: 1
+        default: 1
+        required: false
+      pageSize:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+        required: false
+  hasErrors:
+    responses:
+      400:
+        body:
+          type: ApiError
+          example:
+            code: BAD_REQUEST
+            message: The request did not match the spec
+      500:
+        body:
+          type: ApiError
+          example:
+            code: SERVER_ERROR
+            message: Something went wrong on our side
+
+/orders:
+  get:
+    description: List orders
+    is: [pageable, hasErrors]
+    queryParameters:
+      status:
+        type: string
+        enum: [NEW, PAID, SHIPPED, CANCELLED]
+        required: false
+    responses:
+      200:
+        body:
+          type: Order[]
+          example:
+            - orderId: "1001"
+              customerId: C-42
+              status: PAID
+              lines:
+                - sku: TSHIRT-M
+                  quantity: 2
+                  unitPrice: 15.0
+              total: 30.0
+  post:
+    description: Place a new order
+    is: [hasErrors]
+    body:
+      type: NewOrder
+      example:
+        customerId: C-42
+        lines:
+          - sku: TSHIRT-M
+            quantity: 2
+    responses:
+      201:
+        body:
+          type: Order
+          example:
+            orderId: "1002"
+            customerId: C-42
+            status: NEW
+            lines:
+              - sku: TSHIRT-M
+                quantity: 2
+                unitPrice: 15.0
+            total: 30.0
+  /{orderId}:
+    uriParameters:
+      orderId:
+        type: string
+        pattern: "^[0-9]+$"
+    get:
+      description: Get one order
+      is: [hasErrors]
+      responses:
+        200:
+          body:
+            type: Order
+            example:
+              orderId: "1001"
+              customerId: C-42
+              status: PAID
+              lines:
+                - sku: TSHIRT-M
+                  quantity: 2
+                  unitPrice: 15.0
+              total: 30.0
+        404:
+          body:
+            type: ApiError
+            example:
+              code: NOT_FOUND
+              message: Order not found
+    /returns:
+      post:
+        description: Request a return
+        is: [hasErrors]
+        body:
+          type: ReturnRequest
+          example:
+            reason: DAMAGED
+            skus: [TSHIRT-M]
+        responses:
+          201:
+            body:
+              type: ReturnConfirmation
+              example:
+                returnId: R-5001
+                orderId: "1001"
+                status: REQUESTED
